@@ -1,0 +1,28 @@
+[project]
+name = "noisy-apt"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "librosa>=0.11.0",
+    "matplotlib>=3.10.8",
+    "mir-eval>=0.8.2",
+    "moduleconf>=0.1.4",
+    "ncls>=0.0.70",
+    "numpy>=2.4.4",
+    "pandas>=3.0.2",
+    "pretty-midi>=0.2.11",
+    "pydub>=0.25.1",
+    "pyloudnorm>=0.2.0",
+    "scipy>=1.17.1",
+    "seaborn>=0.13.2",
+    "soundfile>=0.13.1",
+    "sox>=1.5.0",
+    "soxr>=1.0.0",
+    "tensorboard>=2.20.0",
+    "torch>=2.11.0",
+    "torch-optimizer>=0.3.0",
+    "torchaudio>=2.11.0",
+    "tqdm>=4.67.3",
+]
