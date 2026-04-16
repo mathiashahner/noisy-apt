@@ -290,12 +290,8 @@ def main():
     musdb_root = Path(args.musdb_root)
     out_root = Path(args.out_root)
 
-    out_audio = out_root / "audio"
-    out_midi = out_root / "midi"
     meta_path = out_root / "metadata.csv"
     ensure_dir(out_root)
-    ensure_dir(out_audio)
-    ensure_dir(out_midi)
 
     print("Indexing MAESTRO...")
     maestro_pairs = find_maestro_pairs(maestro_root)
@@ -367,9 +363,12 @@ def main():
             mix = clean + inter
             mix = peak_normalize(mix, peak_db=args.peak_db).astype(np.float32)
 
-            sample_id = f"{i:07d}"
-            out_audio_path = out_audio / f"{sample_id}.wav"
-            out_midi_path = out_midi / f"{sample_id}{ma_midi_path.suffix.lower()}"
+            out_audio_rel = ma_audio_path.relative_to(maestro_root).with_suffix(".wav")
+            out_midi_rel = ma_midi_path.relative_to(maestro_root)
+
+            out_audio_path = out_root / out_audio_rel
+            out_midi_path = out_root / out_midi_rel
+            sample_id = str(out_audio_rel.with_suffix(""))
 
             write_audio(out_audio_path, mix, args.sr)
             copy_midi(ma_midi_path, out_midi_path)
@@ -388,10 +387,9 @@ def main():
                 }
             )
 
-    print(f"Done. Wrote: {out_root}")
-    print(f"- audio: {out_audio}")
-    print(f"- midi : {out_midi}")
-    print(f"- meta : {meta_path}")
+    print("\nProcessing complete")
+    print(f"dataset: {out_root}")
+    print(f"metadata: {meta_path}")
 
 
 if __name__ == "__main__":
