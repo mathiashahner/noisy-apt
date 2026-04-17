@@ -17,9 +17,6 @@ Mixture modes and target ratio (uniform by construction):
 SNR curriculum by sample progress:
   first 30% of generated samples: SNR in [20, 5] dB
   remaining 70%:               SNR in [20, -5] dB
-
-Requirements:
-  pip install librosa soundfile numpy pandas pyloudnorm tqdm
 """
 
 import argparse
@@ -38,7 +35,7 @@ import soundfile as sf
 from tqdm import tqdm
 
 
-AUDIO_EXTS = {".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac", ".aif", ".aiff"}
+AUDIO_EXTS = {".wav"}
 MIDI_EXTS = {".mid", ".midi"}
 
 
@@ -60,71 +57,40 @@ def is_midi_file(p: Path) -> bool:
 
 
 def find_maestro_pairs(maestro_root: Path) -> List[Tuple[Path, Path]]:
-    """
-    Tries to pair MAESTRO audio and midi by stem-relative path.
-    If maestro-v*.csv exists, uses it.
-    Else fallback: recursively match by filename stem.
-    """
     csv_candidates = sorted(maestro_root.glob("maestro-v*.csv"))
     pairs: List[Tuple[Path, Path]] = []
 
-    if csv_candidates:
-        # Use latest csv by lexical sort
-        maestro_csv = csv_candidates[-1]
-        df = pd.read_csv(maestro_csv)
-        # Expected columns in MAESTRO: audio_filename, midi_filename
-        if "audio_filename" in df.columns and "midi_filename" in df.columns:
-            for _, row in df.iterrows():
-                a = maestro_root / str(row["audio_filename"])
-                m = maestro_root / str(row["midi_filename"])
-                if a.exists() and m.exists():
-                    pairs.append((a, m))
-        if pairs:
-            return pairs
+    maestro_csv = csv_candidates[-1]
+    df = pd.read_csv(maestro_csv)
 
-    # fallback
-    audios = [p for p in maestro_root.rglob("*") if p.is_file() and is_audio_file(p)]
-    midi_map: Dict[str, Path] = {}
-    for p in maestro_root.rglob("*"):
-        if p.is_file() and is_midi_file(p):
-            midi_map[p.stem] = p
+    for _, row in df.iterrows():
+        a = maestro_root / str(row["audio_filename"])
+        m = maestro_root / str(row["midi_filename"])
+        if a.exists() and m.exists():
+            pairs.append((a, m))
 
-    for a in audios:
-        if a.stem in midi_map:
-            pairs.append((a, midi_map[a.stem]))
-
-    # de-dup by audio path
-    seen = set()
-    uniq = []
-    for a, m in pairs:
-        k = str(a.resolve())
-        if k not in seen:
-            seen.add(k)
-            uniq.append((a, m))
-    return uniq
+    return pairs
 
 
 def index_musdb_stems(musdb_root: Path) -> Dict[str, List[Path]]:
-    """
-    Index MUSDB stems by inferred stem type from filename:
-      vocals, drums, bass
-    """
     stems = {"vocals": [], "drums": [], "bass": []}
+
     for p in musdb_root.rglob("*"):
         if not (p.is_file() and is_audio_file(p)):
             continue
+
         name = p.name.lower()
-        # common musdb stem names: vocals.wav, drums.wav, bass.wav
         if "vocals" in name:
             stems["vocals"].append(p)
         elif "drums" in name:
             stems["drums"].append(p)
         elif "bass" in name:
             stems["bass"].append(p)
+
     return stems
 
 
-def load_mono(path: Path, sr: int) -> np.ndarray:
+def load_audio(path: Path, sr: int) -> np.ndarray:
     y, _ = librosa.load(path, sr=sr, mono=True)
     return y.astype(np.float32)
 
@@ -136,7 +102,7 @@ def peak_normalize(y: np.ndarray, peak_db: float = -1.0) -> np.ndarray:
 
 
 def loudness_normalize(
-    y: np.ndarray, sr: int, meter: pyln.Meter, target_lufs: float = -14.0
+    y: np.ndarray, sr: int, meter: pyln.Meter, target_lufs: float
 ) -> np.ndarray:
     if len(y) < sr // 2:
         return y
@@ -157,12 +123,6 @@ def tile_or_crop(x: np.ndarray, target_len: int) -> np.ndarray:
 
 
 def sample_snr_db(progress: float) -> float:
-    """
-    progress in [0,1]
-    curriculum:
-      <=0.3: uniform [20, 5]
-      >0.3 : uniform [20, -5]
-    """
     if progress <= 0.30:
         lo, hi = 5.0, 20.0
     else:
@@ -215,7 +175,7 @@ def mix_interferers(
         if not pool:
             return None
         p = random.choice(pool)
-        y = load_mono(p, sr)
+        y = load_audio(p, sr)
         y = tile_or_crop(y, target_len)
         y = loudness_normalize(y, sr, meter, target_lufs=target_lufs)
         chosen_paths.append(p)
@@ -225,7 +185,6 @@ def mix_interferers(
         return np.zeros(target_len, dtype=np.float32), chosen_paths
 
     if mode == "noise_only":
-        # use one or more of drums/bass
         candidates = [k for k in ["drums", "bass"] if len(stem_index.get(k, [])) > 0]
         k = random.randint(1, max(1, len(candidates)))
         picked_types = random.sample(candidates, k=k)
@@ -245,7 +204,6 @@ def mix_interferers(
             parts.append(yv)
         candidates = [k for k in ["drums", "bass"] if len(stem_index.get(k, [])) > 0]
         if candidates:
-            # one or more non-vocal stems
             k = random.randint(1, len(candidates))
             picked_types = random.sample(candidates, k=k)
             for t in picked_types:
@@ -277,9 +235,6 @@ def main():
     parser.add_argument("--out_root", type=str, required=True)
     parser.add_argument("--sr", type=int, default=44100)
     parser.add_argument("--target_lufs", type=float, default=-14.0)
-    parser.add_argument(
-        "--n_samples", type=int, default=0, help="0 = use all MAESTRO pairs once"
-    )
     parser.add_argument("--seed", type=int, default=1377)
     parser.add_argument("--peak_db", type=float, default=-1.0)
     args = parser.parse_args()
@@ -293,30 +248,13 @@ def main():
     meta_path = out_root / "metadata.csv"
     ensure_dir(out_root)
 
-    print("Indexing MAESTRO...")
     maestro_pairs = find_maestro_pairs(maestro_root)
-    if not maestro_pairs:
-        raise RuntimeError("No MAESTRO (audio, midi) pairs found.")
-
-    print("Indexing MUSDB stems...")
     stem_index = index_musdb_stems(musdb_root)
-    for k in ["vocals", "drums", "bass"]:
-        print(f"  {k}: {len(stem_index[k])}")
-    if len(stem_index["vocals"]) == 0:
-        raise RuntimeError("No vocals stems found in MUSDB root.")
-    if len(stem_index["drums"]) == 0 and len(stem_index["bass"]) == 0:
-        raise RuntimeError("No drums/bass stems found in MUSDB root.")
 
-    n = args.n_samples if args.n_samples > 0 else len(maestro_pairs)
+    n_samples = len(maestro_pairs)
     meter = pyln.Meter(args.sr)
 
-    # If n > len(maestro_pairs), sample with replacement.
-    def get_pair(i: int) -> Tuple[Path, Path]:
-        if i < len(maestro_pairs):
-            return maestro_pairs[i]
-        return random.choice(maestro_pairs)
-
-    print(f"Generating {n} samples...")
+    print(f"Generating {n_samples} samples...")
     with open(meta_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f,
@@ -334,12 +272,12 @@ def main():
         )
         writer.writeheader()
 
-        for i in tqdm(range(n)):
-            mode = choose_mode(i, n)
-            progress = i / max(1, n - 1)
+        for i in tqdm(range(n_samples)):
+            mode = choose_mode(i, n_samples)
+            progress = i / max(1, n_samples - 1)
 
-            ma_audio_path, ma_midi_path = get_pair(i)
-            clean = load_mono(ma_audio_path, args.sr)
+            ma_audio_path, ma_midi_path = random.choice(maestro_pairs)
+            clean = load_audio(ma_audio_path, args.sr)
             clean = loudness_normalize(
                 clean, args.sr, meter, target_lufs=args.target_lufs
             )
