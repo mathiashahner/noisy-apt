@@ -229,7 +229,7 @@ def main():
     musdb_index = index_musdb_stems(musdb_root)
     n_samples = len(maestro_pairs)
 
-    print(f"Generating {n_samples} samples...")
+    print(f"Generating {n_samples} samples...\n")
     with open(meta_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f,
@@ -251,7 +251,7 @@ def main():
             mode = choose_mode(i, n_samples)
             progress = i / max(1, n_samples - 1)
 
-            ma_audio_path, ma_midi_path = random.choice(maestro_pairs)
+            ma_audio_path, ma_midi_path = maestro_pairs[i]
             clean = load_audio(ma_audio_path, args.sr)
             target_len = len(clean)
 
