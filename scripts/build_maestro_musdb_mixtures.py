@@ -65,8 +65,7 @@ def find_maestro_pairs(maestro_root: Path) -> List[Tuple[Path, Path]]:
     for _, row in df.iterrows():
         a = maestro_root / str(row["audio_filename"])
         m = maestro_root / str(row["midi_filename"])
-        if a.exists() and m.exists():
-            pairs.append((a, m))
+        pairs.append((a, m))
 
     return pairs
 
@@ -97,9 +96,11 @@ def load_audio(path: Path, sr: int) -> np.ndarray:
 def tile_or_crop(x: np.ndarray, target_len: int) -> np.ndarray:
     if len(x) == target_len:
         return x
+
     if len(x) > target_len:
         start = random.randint(0, len(x) - target_len)
         return x[start : start + target_len]
+
     reps = math.ceil(target_len / len(x))
     y = np.tile(x, reps)[:target_len]
     return y
@@ -110,6 +111,7 @@ def sample_snr_db(progress: float) -> float:
         lo, hi = 5.0, 20.0
     else:
         lo, hi = -5.0, 20.0
+
     return random.uniform(lo, hi)
 
 
@@ -138,7 +140,7 @@ def choose_mode(i: int, n: int) -> str:
 
 def mix_interferers(
     mode: str,
-    stem_index: Dict[str, List[Path]],
+    musdb_index: Dict[str, List[Path]],
     target_len: int,
     sr: int,
 ) -> Tuple[np.ndarray, List[Path]]:
@@ -152,7 +154,7 @@ def mix_interferers(
     parts: List[np.ndarray] = []
 
     def pick_and_prepare(pool_name: str) -> Optional[np.ndarray]:
-        pool = stem_index.get(pool_name, [])
+        pool = musdb_index.get(pool_name, [])
         if not pool:
             return None
         p = random.choice(pool)
@@ -165,7 +167,7 @@ def mix_interferers(
         return np.zeros(target_len, dtype=np.float32), chosen_paths
 
     if mode == "noise_only":
-        candidates = [k for k in ["drums", "bass"] if len(stem_index.get(k, [])) > 0]
+        candidates = [k for k in ["drums", "bass"] if len(musdb_index.get(k, [])) > 0]
         k = random.randint(1, max(1, len(candidates)))
         picked_types = random.sample(candidates, k=k)
         for t in picked_types:
@@ -182,7 +184,7 @@ def mix_interferers(
         yv = pick_and_prepare("vocals")
         if yv is not None:
             parts.append(yv)
-        candidates = [k for k in ["drums", "bass"] if len(stem_index.get(k, [])) > 0]
+        candidates = [k for k in ["drums", "bass"] if len(musdb_index.get(k, [])) > 0]
         if candidates:
             k = random.randint(1, len(candidates))
             picked_types = random.sample(candidates, k=k)
@@ -190,9 +192,6 @@ def mix_interferers(
                 yn = pick_and_prepare(t)
                 if yn is not None:
                     parts.append(yn)
-
-    if not parts:
-        return np.zeros(target_len, dtype=np.float32), chosen_paths
 
     inter = np.sum(np.stack(parts, axis=0), axis=0).astype(np.float32)
     return inter, chosen_paths
@@ -227,7 +226,7 @@ def main():
     ensure_dir(out_root)
 
     maestro_pairs = find_maestro_pairs(maestro_root)
-    stem_index = index_musdb_stems(musdb_root)
+    musdb_index = index_musdb_stems(musdb_root)
     n_samples = len(maestro_pairs)
 
     print(f"Generating {n_samples} samples...")
@@ -258,7 +257,7 @@ def main():
 
             inter, used_stems = mix_interferers(
                 mode=mode,
-                stem_index=stem_index,
+                musdb_index=musdb_index,
                 target_len=target_len,
                 sr=args.sr,
             )
