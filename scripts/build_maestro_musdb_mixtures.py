@@ -30,7 +30,6 @@ from typing import Dict, List, Optional, Tuple
 import librosa
 import numpy as np
 import pandas as pd
-import pyloudnorm as pyln
 import soundfile as sf
 from tqdm import tqdm
 
@@ -95,22 +94,6 @@ def load_audio(path: Path, sr: int) -> np.ndarray:
     return y.astype(np.float32)
 
 
-def peak_normalize(y: np.ndarray, peak_db: float = -1.0) -> np.ndarray:
-    peak_lin = 10 ** (peak_db / 20.0)
-    m = np.max(np.abs(y)) + 1e-12
-    return (y / m) * peak_lin
-
-
-def loudness_normalize(
-    y: np.ndarray, sr: int, meter: pyln.Meter, target_lufs: float
-) -> np.ndarray:
-    if len(y) < sr // 2:
-        return y
-    loud = meter.integrated_loudness(y)
-    y_n = pyln.normalize.loudness(y, loud, target_lufs)
-    return y_n.astype(np.float32)
-
-
 def tile_or_crop(x: np.ndarray, target_len: int) -> np.ndarray:
     if len(x) == target_len:
         return x
@@ -158,8 +141,6 @@ def mix_interferers(
     stem_index: Dict[str, List[Path]],
     target_len: int,
     sr: int,
-    meter: pyln.Meter,
-    target_lufs: float,
 ) -> Tuple[np.ndarray, List[Path]]:
     """
     Build interference track according to mode.
@@ -177,7 +158,6 @@ def mix_interferers(
         p = random.choice(pool)
         y = load_audio(p, sr)
         y = tile_or_crop(y, target_len)
-        y = loudness_normalize(y, sr, meter, target_lufs=target_lufs)
         chosen_paths.append(p)
         return y
 
@@ -234,9 +214,7 @@ def main():
     parser.add_argument("--musdb_root", type=str, required=True)
     parser.add_argument("--out_root", type=str, required=True)
     parser.add_argument("--sr", type=int, default=44100)
-    parser.add_argument("--target_lufs", type=float, default=-14.0)
     parser.add_argument("--seed", type=int, default=1377)
-    parser.add_argument("--peak_db", type=float, default=-1.0)
     args = parser.parse_args()
 
     set_seed(args.seed)
@@ -250,9 +228,7 @@ def main():
 
     maestro_pairs = find_maestro_pairs(maestro_root)
     stem_index = index_musdb_stems(musdb_root)
-
     n_samples = len(maestro_pairs)
-    meter = pyln.Meter(args.sr)
 
     print(f"Generating {n_samples} samples...")
     with open(meta_path, "w", newline="", encoding="utf-8") as f:
@@ -278,10 +254,6 @@ def main():
 
             ma_audio_path, ma_midi_path = random.choice(maestro_pairs)
             clean = load_audio(ma_audio_path, args.sr)
-            clean = loudness_normalize(
-                clean, args.sr, meter, target_lufs=args.target_lufs
-            )
-
             target_len = len(clean)
 
             inter, used_stems = mix_interferers(
@@ -289,8 +261,6 @@ def main():
                 stem_index=stem_index,
                 target_len=target_len,
                 sr=args.sr,
-                meter=meter,
-                target_lufs=args.target_lufs,
             )
 
             snr_db = np.nan
@@ -299,7 +269,6 @@ def main():
                 inter = scale_to_snr(clean, inter, snr_db)
 
             mix = clean + inter
-            mix = peak_normalize(mix, peak_db=args.peak_db).astype(np.float32)
 
             out_audio_rel = ma_audio_path.relative_to(maestro_root).with_suffix(".wav")
             out_midi_rel = ma_midi_path.relative_to(maestro_root)
