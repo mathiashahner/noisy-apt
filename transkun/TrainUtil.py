@@ -149,11 +149,23 @@ def initializeCheckpoint(Model,
     return  startEpoch, startIter, model, lossTracker, best_state_dict, optimizer, lrScheduler
     
 
-def load_checkpoint(Model, conf, filename,device, strict=False):
+def get_checkpoint_property(checkpoint, propertyName, defaultValue = None):
+    return checkpoint[propertyName] if propertyName in checkpoint else defaultValue
+
+
+def load_checkpoint(Model, conf, filename, device, strict=False, args=None):
+    startEpoch, startIter, model, lossTracker, best_state_dict, optimizer, lrScheduler = initializeCheckpoint(
+                    Model,
+                    device = device,
+                    max_lr= args.max_lr,
+                    weight_decay = args.weight_decay,
+                    nIter = args.nIter,
+                    conf = conf)
+
     checkpoint = torch.load(filename, map_location=device)
 
-    startEpoch = checkpoint['epoch']
-    startIter = checkpoint['nIter']
+    startEpoch = get_checkpoint_property(checkpoint, 'epoch', startEpoch)
+    startIter = get_checkpoint_property(checkpoint, 'nIter', startIter)
 
     # conf_dict = checkpoint['conf']
     
@@ -185,26 +197,26 @@ def load_checkpoint(Model, conf, filename,device, strict=False):
 
     if restartFromTheBest:
         if not strict:
-            load_state_dict_tolerant(model, checkpoint['best_state_dict'])
+            load_state_dict_tolerant(model, get_checkpoint_property(checkpoint, 'best_state_dict', best_state_dict))
         else:
-            model.load_state_dict(checkpoint['best_state_dict'])
+            model.load_state_dict(get_checkpoint_property(checkpoint, 'best_state_dict', best_state_dict))
         # lrScheduler.load_state_dict( checkpoint['lr_scheduler_state_dict'])
     else:
         if not strict:
-            load_state_dict_tolerant(model, checkpoint['state_dict'])
+            load_state_dict_tolerant(model, get_checkpoint_property(checkpoint, 'state_dict'))
         else:
-            model.load_state_dict(checkpoint['state_dict'])
+            model.load_state_dict(get_checkpoint_property(checkpoint, 'state_dict'))
 
-        optimizer.load_state_dict( checkpoint['optimizer_state_dict'])
+        optimizer.load_state_dict( get_checkpoint_property(checkpoint, 'optimizer_state_dict', optimizer.state_dict()))
 
     # lrScheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, 4e-4, 500000, pct_start = 0.05, cycle_momentum=False, final_div_factor=2, div_factor = 20, last_epoch = startIter)
-        lrScheduler.load_state_dict( checkpoint['lr_scheduler_state_dict'])
+        lrScheduler.load_state_dict( get_checkpoint_property(checkpoint, 'lr_scheduler_state_dict', lrScheduler.state_dict()))
 
     # lrScheduler.total_steps = 500000
     # print(optimizer.param_groups)
-    best_state_dict = checkpoint['best_state_dict']
+    best_state_dict = get_checkpoint_property(checkpoint, 'best_state_dict', best_state_dict)
 
-    lossTracker = checkpoint['loss_tracker']
+    lossTracker = get_checkpoint_property(checkpoint, 'loss_tracker', lossTracker)
 
     return startEpoch, startIter, model, lossTracker, best_state_dict, optimizer, lrScheduler
 

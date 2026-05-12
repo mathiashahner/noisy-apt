@@ -70,7 +70,7 @@ def train(workerId, nWorker, filename, runSeed, args):
         dist.barrier()
         
 
-    startEpoch, startIter, model,  lossTracker, best_state_dict, optimizer, lrScheduler= load_checkpoint(TransKun, conf, filename,device)
+    startEpoch, startIter, model,  lossTracker, best_state_dict, optimizer, lrScheduler= load_checkpoint(TransKun, conf, filename, device, args=args)
     print("#{} loaded".format(workerId))
 
 
@@ -113,7 +113,7 @@ def train(workerId, nWorker, filename, runSeed, args):
     if args.augment:
         augmentator = Data.AugmentatorAudiomentations(sampleRate=44100, noiseFolder = args.noiseFolder, convIRFolder = args.irFolder)
 
-    for epoc in range(startEpoch, 1000000):
+    for epoc in range(startEpoch, 5):
         # average length will be chunkSize
         dataIter = Data.DatasetMaestroIterator(dataset, hopSize, chunkSize, seed = epoc*100+runSeed, augmentator = augmentator, notesStrictlyContained=False)
 
@@ -123,7 +123,7 @@ def train(workerId, nWorker, filename, runSeed, args):
             # dataloader= torch.utils.data.DataLoader(dataIter, batch_size = batchSize, collate_fn = Data.collate_fn, num_workers=args.dataLoaderWorkers, sampler = sampler, drop_last = True, prefetch_factor = 3)
             dataloader= torch.utils.data.DataLoader(dataIter, batch_size = batchSize, collate_fn = Data.collate_fn_batching, num_workers=args.dataLoaderWorkers, sampler = sampler, drop_last = True, prefetch_factor = max(4, args.dataLoaderWorkers))
         else:
-            dataloader= torch.utils.data.DataLoader(dataIter, batch_size = batchSize, collate_fn = Data.collate_fn_batching, num_workers=args.dataLoaderWorkers, shuffle=True, dropout_last=True, prefetch_factor = max(4, args.dataLoaderWorkers))
+            dataloader= torch.utils.data.DataLoader(dataIter, batch_size = batchSize, collate_fn = Data.collate_fn_batching, num_workers=args.dataLoaderWorkers, shuffle=True, drop_last=True, prefetch_factor = max(4, args.dataLoaderWorkers))
 
 
         lossAll = []
