@@ -1,50 +1,31 @@
-import torch
-import sys
-import os
-
-import argparse
-
-import pathlib
-from . import Evaluation
-
-import collections
-
-from multiprocessing import Pool
 from . import Data
-import os
-import warnings
-import glob
+from . import Evaluation
+from multiprocessing import Pool
 
-import numpy as np
+import os
+import argparse
+import pathlib
+import collections
+import warnings
 import json
-import itertools
 import random
 import statistics
 import scipy
+import numpy as np
 
 
 def eval(args):
     path, estPath, gtPath, extendSustainPedal, computeDeviations, pedalOffset, alignOnset, dither, extendPedalEst, onsetTolerance = args
 
     audioName = str(path.relative_to(estPath))
-
-    # print(audioName)
-
     targetPath = gtPath/path.relative_to(estPath)
-    # print(path)
-    # print(targetPath)
     notesEst = Data.parseMIDIFile(str(path), extendSustainPedal=extendPedalEst)
     notesGT = Data.parseMIDIFile(str(targetPath), extendSustainPedal=extendSustainPedal, pedal_ext_offset = pedalOffset)
-
 
     metrics = Evaluation.compareTranscription(notesEst, notesGT, splitPedal=True, computeDeviations= computeDeviations, onset_tolerance = onsetTolerance)
 
     # realign
     onsetDev = [d[1] for d in metrics["deviations"]]
-    offsetDev = [d[2] for d in metrics["deviations"]]
-    meanOnsetDev = sum(onsetDev)/len(onsetDev)
-    meanOffsetDev = sum(offsetDev)/len(offsetDev)
-
 
     medianOnsetDev = statistics.median(onsetDev)
     maxDevOnset = max(max(onsetDev), -min(onsetDev))
@@ -73,11 +54,8 @@ def eval(args):
         notesEst = Data.resolveOverlapping(notesEst)
 
 
-        # recompute
+    # recompute
     metrics = Evaluation.compareTranscription(notesEst, notesGT, splitPedal=True, computeDeviations= computeDeviations)
-
-    # for name in metrics:
-    # print(metrics, audioName)
 
     return metrics,audioName
     
@@ -101,11 +79,9 @@ def main():
     argParser.add_argument("--pedalOffset", default=0.0, type=float, help = "offset added to the groundTruth sustain pedal when extending notes")
     argParser.add_argument("--onsetTolerance", default=0.05, type=float)
 
-
     warnings.filterwarnings('ignore', module='mir_eval')
 
     args = argParser.parse_args()
-
 
     estPath = args.estDIR
     gtPath = args.groundTruthDIR
@@ -134,7 +110,6 @@ def main():
 
     filenames = filenamesFiltered
 
-
     import tqdm
     if nProcess>1:
         with Pool(nProcess) as p:
@@ -146,12 +121,9 @@ def main():
     else:
             metricsAll = list(
                     tqdm.tqdm(
-                    map(eval, [(_, estPath, gtPath, extendPedal, computeDeviations, pedalOffset, alignOnset, dither, extendPedalEs, onsetTolerancet) for _ in filenames]),
+                    map(eval, [(_, estPath, gtPath, extendPedal, computeDeviations, pedalOffset, alignOnset, dither, extendPedalEst, onsetTolerance) for _ in filenames]),
                     total = len(filenames)
                     ))
-
-
-
 
     # aggregate
     aggDict =collections.defaultdict(list)
@@ -159,7 +131,6 @@ def main():
     for m, _ in metricsAll:
         for key in m:
             aggDict[key].append(m[key])
-
 
     resultAgg = dict()
     for key in aggDict:
@@ -190,8 +161,6 @@ def main():
         resultList = [{"name":name, "metrics":m} for m, name in metricsAll]
 
         result = {"aggregated": resultAgg, "detailed": resultList}
-
-
 
         with open(outputJSON, 'w') as f:
             f.write(json.dumps(result, indent= '\t'))
