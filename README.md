@@ -1,16 +1,6 @@
-# Piano Transcription with Neural Semi-CRF
+# Noise Robust Piano Transcription with Neural Semi-CRF
 
-
-This repo contains code for following papers for transcribing expressive piano performance into MIDI.
-
-> Yujia Yan and Zhiyao Duan, Scoring intervals using non-hierarchical transformer for automatic piano transcription, in Proc. International Society for Music Information Retrieval Conference (ISMIR), 2024, [Paper](https://arxiv.org/abs/2404.09466)
-
-> Yujia Yan, Frank Cwitkowitz, Zhiyao Duan, Skipping the Frame-Level: Event-Based Piano Transcription With Neural Semi-CRFs, Advances in Neural Information Processing Systems, 2021, 
-[OpenReview](https://openreview.net/forum?id=DGA8XbJ8FVd), [paper](https://openreview.net/pdf?id=DGA8XbJ8FVd), [appendix](https://openreview.net/attachment?id=DGA8XbJ8FVd&name=supplementary_material)
-
-## Demo Video:
-[![Demo Video](https://img.youtube.com/vi/6P3kFHUBicw/0.jpg)](https://www.youtube.com/watch?v=6P3kFHUBicw)
-
+This repo contains code to transcribe expressive piano performances into MIDI, even in the presence of external audio interference.
 
 ## pip installation
 
@@ -30,32 +20,16 @@ with cuda:
 $ transkun input.mp3 output.mid --device cuda
 ```
 
-**Note:** The code/pip package shipped checkpoint is trained **without pedal extension of notes**, and **with data augmentation**,which I believe is closer to a real performance. 
+**Note:** The code/pip package shipped checkpoint is trained **without pedal extension of notes**, and **with data augmentation**,which I believe is closer to a real performance.
 Be cautious that the convention for the piano transcription task in previous works is extending all notes by sustain pedal durations. For more checkpoints, e.g, those reported in the paper, see [Model Cards](#model-cards)
 
 **Colab Notebook** [Colab](https://colab.research.google.com/drive/1XuFNdYbcHBy3OyGCmtt2UGa2-PXjkJeo?usp=sharing)
-
-## Overview
-
-
-<img width="1405" alt="image" src="https://user-images.githubusercontent.com/1996534/183318064-db32dbef-500d-4710-93a1-10acd3eb8825.png">
-
-This system works as follows: 
-1. A score tensor is computed from the input audio that scores every possible intervals for whether or not being an event.
-2. The score tensor computed in (1) is then decoded by the proposed semi-CRF layer to obtain event intervals directly via dynamic programming (viterbi).
-3. Attributes, e.g., velocity and refined onset/offset position, associated with each interval are then predicted from the extracted event intervals from (2).
-
-### V2 
-In V2, as demonstrated in the ISMIR 2024 paper, the changes from V1 are:
-1. the model architecture is replaced with a transformer
-2. The Score module is simplified with Scaled Inner Product Interval Scaling. The noise score is now zero tensor for compatibility with V1.
-3. Segmentwise processing now handles incomplete events with a longer duration 
 
 ## Basic Usage
 
 ### The Semi-CRF Layer
 
-This code includes an neural semi-CRF module that is optimized for the problem domain.  
+This code includes an neural semi-CRF module that is optimized for the problem domain.
 
 Here is a minimal example for using this module:
 
@@ -117,7 +91,7 @@ options:
 
 ```
 
-This script can also be used directly as the command line command 'transkun' if the pip package is installed, e.g., 
+This script can also be used directly as the command line command 'transkun' if the pip package is installed, e.g.,
 
 ```bash
 $ transkun input.mp3 output.mid
@@ -125,30 +99,17 @@ $ transkun input.mp3 output.mid
 
 ## Model Cards
 
-|                  |Dataset                   |Activation|      |      |Note Onset|      |      |Note Onset+Offset|      |      |Note Onset+Offset+ vel.|      |      |pedal activation|      |      |pedal onset|      |      |pedal onset+offset|      |      |
-|------------------|--------------------------|----------|------|------|----------|------|------|-----------------|------|------|-----------------------|------|------|----------------|------|------|-----------|------|------|------------------|------|------|
-|Checkpoint     |                          |prec      |recall|F1    |prec      |recall|F1    |prec             |recall|F1    |prec                   |recall|F1    |prec            |recall|F1    |prec       |recall|F1    |prec              |recall|F1    |
-|[Transkun V2](https://drive.google.com/file/d/1pxGpO8eCdFxMRrXi_YUh7_uC0Ae26coB/view?usp=drive_link)       |Maestro V3                |0.9576    |0.9489|0.953 |0.9956    |0.9714|0.9832|0.9465           |0.9238|0.9349|0.9411                 |0.9186|0.9296|0.9671          |0.9453|0.9541|0.8909     |0.8421|0.8642|0.8632            |0.8165|0.8377|
-|                  |MAPS (ad hoc align)       |0.887     |0.8252|0.8535|0.8671    |0.9048|0.8849|0.6325           |0.6613|0.6461|0.4351                 |0.4551|0.4446|0.8498          |0.8547|0.8449|0.6521     |0.7182|0.6732|0.4903            |0.5427|0.5088|
-|                  |SMD                       |0.9203    |0.9491|0.934 |0.9816    |0.9766|0.979 |0.9013           |0.8968|0.899 |0.8255                 |0.8211|0.8232|0.9364          |0.9507|0.942 |0.8722     |0.8101|0.8388|0.803             |0.7471|0.773 |
-|[Transkun V2 Aug](https://drive.google.com/file/d/1Hg5ua8vYdtg1Y-MnXD0mLyhRK9Srd7hm/view?usp=drive_link)   |Maestro V3                |0.9495    |0.9522|0.9505|0.9971    |0.9715|0.984 |0.9437           |0.9197|0.9314|0.9386                 |0.9149|0.9264|0.9546          |0.9416|0.9454|0.8883     |0.8116|0.8453|0.8497            |0.7790|0.8102|
-|                  |MAPS (ad hoc align)       |0.9446    |0.8334|0.8843|0.9396    |0.9056|0.9219|0.7105           |0.6854|0.6975|0.5596                 |0.5401|0.5495|0.8893          |0.8389|0.8583|0.7313     |0.7529|0.7343|0.5499            |0.5650|0.5532|
-|                  |SMD                       |0.9389    |0.9518|0.9448|0.997     |0.9801|0.9884|0.9284           |0.9128|0.9205|0.8974                 |0.8823|0.8897|0.9491          |0.9428|0.9447|0.8788     |0.8043|0.8383|0.8208            |0.7526|0.7837|
-|[Transkun V2 No Ext](https://drive.google.com/file/d/1LKDJE7Pf4jGbpVeLE8Onxn9KhWVLCRjb/view?usp=drive_link)|Maestro V3 No Ext         |0.8671    |0.825 |0.8441|0.9984    |0.9691|0.9833|0.8271           |0.8034|0.8149|0.823                  |0.7995|0.8109|0.9498          |0.9518|0.9487|0.8872     |0.8105|0.8444|0.8413            |0.7723|0.8031|
-|                  |MAPS (ad hoc align) No Ext|0.9093    |0.6383|0.7465|0.941     |0.9044|0.922 |0.5577           |0.5369|0.5469|0.443                  |0.4266|0.4345|0.8753          |0.8471|0.8543|0.7107     |0.7525|0.721 |0.5331            |0.5612|0.5421|
-|                  |SMD No Ext                |0.8539    |0.8533|0.8524|0.9982    |0.9774|0.9876|0.7936           |0.7778|0.7855|0.7666                 |0.7513|0.7588|0.9483          |0.9453|0.9455|0.8812     |0.8067|0.8408|0.8215            |0.7539|0.7848|
-
-* onset deviations on MAPS deviates strongly from a Normal distribution, suggesting potential annotation issues.  ad hoc align is used to fix this bias. Offset deviations are still abnormal after this correction.
-* Aug means the model is trained with data augmentation
-* No Ext means without pedal extension
-* The default checkpoint shipped with the code/pip package is Transkun V2 No Pedal Ext. Currently it is fine-tuned from Transkun V2 Aug, will train from scratch in the future.
-* There's some minor bug fixes since the paper, the results listed here reflect the latest version which may differ slightly from the paper.
+- onset deviations on MAPS deviates strongly from a Normal distribution, suggesting potential annotation issues. ad hoc align is used to fix this bias. Offset deviations are still abnormal after this correction.
+- Aug means the model is trained with data augmentation
+- No Ext means without pedal extension
+- The default checkpoint shipped with the code/pip package is Transkun V2 No Pedal Ext. Currently it is fine-tuned from Transkun V2 Aug, will train from scratch in the future.
+- There's some minor bug fixes since the paper, the results listed here reflect the latest version which may differ slightly from the paper.
 
 ## Handling the dataset
 
 ### Converting to the same sampling rate
 
-We assume the data contains only the same sampling rate 44100hz. Therefore for the maestro dataset it is necessary to perform sampling rate conversion to 44100hz for the last two years (2017 and 2018) .  
+We assume the data contains only the same sampling rate 44100hz. Therefore for the maestro dataset it is necessary to perform sampling rate conversion to 44100hz for the last two years (2017 and 2018) .
 
 ### Generating metadata files
 
@@ -231,61 +192,16 @@ Currently, we do not support evaluation of multitrack MIDIs.
 
 This command can also be used directly as the command line script 'transkunEval' if the pip package is installed.
 
-### Ploting the empirical cumulative distribution function to visualize the onset/offset accuracy
-
-Use the following script to plot the ECDF curve for onset/offset deviations:
-
-```bash
-usage: plotDeviation.py [-h] [--labels [LABELS ...]] [--offset] [--T T] [--output [OUTPUT]] [--noDisplay] [--cumulative] [--absolute] [--targetPitch TARGETPITCH]
-                        evalJsons [evalJsons ...]
-
-plot the empirical cumulative distribution function on onset/offset deviations
-
-positional arguments:
-  evalJsons             a seqeunce of the output json files from the computeMetrics script, the deviation output should be enabled
-
-options:
-  -h, --help            show this help message and exit
-  --labels [LABELS ...]
-                        specify labels to show on the legend
-  --offset              plot the offset deviation curve. If not specified, onset deviation curve will be plotted
-  --T T                 time limit(ms), default: 50ms
-  --output [OUTPUT]     filename to save
-  --noDisplay           Do not show the figure.
-  --cumulative          plot the empirical cumulative density. 
-  --absolute            use absolute deviation.
-  --targetPitch TARGETPITCH
-                        only plot specific number.
-
-```
-
-![loading-ag-1328](./assets/exampleDev.png)
-
 ### Citation
 
 If you find this repository helpful, please consider citing:
 
-
 Bibtex:
 
 ```bibtex
-@inproceedings{
-yan2021skipping,
-title={Skipping the Frame-Level: Event-Based Piano Transcription With Neural Semi-{CRF}s},
-author={Yujia Yan and Frank Cwitkowitz and Zhiyao Duan},
-booktitle={Advances in Neural Information Processing Systems},
-editor={A. Beygelzimer and Y. Dauphin and P. Liang and J. Wortman Vaughan},
-year={2021},
-url={https://openreview.net/forum?id=AzB2Pq7UFsA}
-}
-```
-
-
-```bibtex
-@inproceedings{yan2024scoring,
-  author    = {Yujia Yan and Zhiyao Duan},
-  title     = {Scoring Time Intervals Using Non-Hierarchical Transformer for Automatic Piano Transcription},
-  booktitle = {Proc. International Society for Music Information Retrieval Conference (ISMIR)},
-  year      = {2024},
+@inproceedings{hahner2026Noisy,
+  author    = {Mathias Daniel Hahner},
+  title     = {TRANSCRIÇÃO AUTOMÁTICA DE PIANO RESISTENTE A RUÍDO: Uma Abordagem com Fine-tuning e Data Augmentation},
+  year      = {2026},
 }
 ```

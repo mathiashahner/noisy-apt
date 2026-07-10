@@ -20,8 +20,8 @@ def main():
 
     import pkg_resources
 
-    defaultWeight = pkg_resources.resource_filename(__name__, "pretrained/2.0.pt")
-    defaultConf = pkg_resources.resource_filename(__name__, "pretrained/2.0.conf")
+    defaultWeight = pkg_resources.resource_filename(__name__, "../models/napty-aug-no-ext/checkpoint.pt")
+    defaultConf = pkg_resources.resource_filename(__name__, "../models/napty-aug-no-ext/model.conf")
 
     argumentParser = argparse.ArgumentParser()
     argumentParser.add_argument("audioPath", help="path to the input audio file")
